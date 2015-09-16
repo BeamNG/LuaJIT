@@ -1,5 +1,5 @@
 @rem Script to build LuaJIT with MSVC.
-@rem Copyright (C) 2005-2015 Mike Pall. See Copyright Notice in luajit.h
+@rem Copyright (C) 2005-2014 Mike Pall. See Copyright Notice in luajit.h
 @rem
 @rem Either open a "Visual Studio .NET Command Prompt"
 @rem (Note that the Express Edition does not contain an x64 compiler)
@@ -67,7 +67,14 @@ buildvm -m folddef -o lj_folddef.h lj_opt_fold.c
 @shift
 @set LJCOMPILE=%LJCOMPILE% /Zi
 @set LJLINK=%LJLINK% /debug
+@set LJLIBNAME=lua51d.lib
 :NODEBUG
+
+:: BeamNG modification: sandbox header injection (always build static as well) START
+@set LJCOMPILE=%LJCOMPILE% /D__LUA_BEAMNG_SANDBOX_COMPILE__ /FI####SANDBOXFILE####
+goto :STATIC
+:: BeamNG modification: sandbox header injection END
+
 @if "%1"=="amalg" goto :AMALGDLL
 @if "%1"=="static" goto :STATIC
 %LJCOMPILE% /MD /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
@@ -90,12 +97,16 @@ buildvm -m folddef -o lj_folddef.h lj_opt_fold.c
 if exist %LJDLLNAME%.manifest^
   %LJMT% -manifest %LJDLLNAME%.manifest -outputresource:%LJDLLNAME%;2
 
-%LJCOMPILE% luajit.c
-@if errorlevel 1 goto :BAD
-%LJLINK% /out:luajit.exe luajit.obj %LJLIBNAME%
-@if errorlevel 1 goto :BAD
-if exist luajit.exe.manifest^
-  %LJMT% -manifest luajit.exe.manifest -outputresource:luajit.exe
+:: BeamNG modification: do not build the EXE - START
+
+::%LJCOMPILE% luajit.c
+::@if errorlevel 1 goto :BAD
+::%LJLINK% /out:luajit.exe luajit.obj %LJLIBNAME%
+::@if errorlevel 1 goto :BAD
+::if exist luajit.exe.manifest^
+::  %LJMT% -manifest luajit.exe.manifest -outputresource:luajit.exe
+
+:: BeamNG modification - END
 
 @del *.obj *.manifest minilua.exe buildvm.exe
 @echo.
