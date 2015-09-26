@@ -65,6 +65,8 @@ typedef int (*lua_Writer) (lua_State *L, const void* p, size_t sz, void* ud);
 */
 typedef void * (*lua_Alloc) (void *ud, void *ptr, size_t osize, size_t nsize);
 
+typedef void* (*lua_Mmap)(size_t* size);
+typedef int (*lua_Munmap)(void *ptr, size_t size);
 
 /*
 ** basic types

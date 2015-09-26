@@ -9,7 +9,10 @@
 #include "lj_def.h"
 
 #ifndef LUAJIT_USE_SYSMALLOC
-LJ_FUNC void *lj_alloc_create(void);
+typedef void* (*PMMAP)(size_t* size);
+typedef int (*PMUNMAP)(void *ptr, size_t size);
+
+LJ_FUNC void *lj_alloc_create(PMMAP cust_mmap, PMUNMAP cust_munmap);
 LJ_FUNC void lj_alloc_destroy(void *msp);
 LJ_FUNC void *lj_alloc_f(void *msp, void *ptr, size_t osize, size_t nsize);
 #endif

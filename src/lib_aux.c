@@ -331,8 +331,13 @@ LUALIB_API lua_State *luaL_newstate(void)
 
 LUALIB_API lua_State *luaL_newstate(void)
 {
+   return luaL_newstate_mmap(0, 0);
+}
+
+LUALIB_API lua_State *luaL_newstate_mmap(lua_Mmap cust_mmap, lua_Munmap cust_munmap)
+{
   lua_State *L;
-  void *ud = lj_alloc_create();
+  void *ud = lj_alloc_create(cust_mmap, cust_munmap);
   if (ud == NULL) return NULL;
 #if LJ_64
   L = lj_state_newstate(lj_alloc_f, ud);

@@ -84,34 +84,43 @@ typedef long (*PNTAVM)(HANDLE handle, void **addr, ULONG zbits,
 		       size_t *size, ULONG alloctype, ULONG prot);
 static PNTAVM ntavm;
 
+static PMMAP custom_mmap;
+static PMUNMAP custom_munmap;
+
 /* Number of top bits of the lower 32 bits of an address that must be zero.
 ** Apparently 0 gives us full 64 bit addresses and 1 gives us the lower 2GB.
 */
 #define NTAVM_ZEROBITS		1
 
-static void INIT_MMAP(void)
+static void INIT_MMAP(PMMAP cust_mmap, PMUNMAP cust_munmap)
 {
   ntavm = (PNTAVM)GetProcAddress(GetModuleHandleA("ntdll.dll"),
 				 "NtAllocateVirtualMemory");
+  custom_mmap = cust_mmap;
+  custom_munmap = cust_munmap;
 }
 
 /* Win64 32 bit MMAP via NtAllocateVirtualMemory. */
-static LJ_AINLINE void *CALL_MMAP(size_t size)
+static LJ_AINLINE void *CALL_MMAP(size_t* size)
 {
+  if (custom_mmap)
+     return custom_mmap(size);
   DWORD olderr = GetLastError();
   void *ptr = NULL;
-  long st = ntavm(INVALID_HANDLE_VALUE, &ptr, NTAVM_ZEROBITS, &size,
+  long st = ntavm(INVALID_HANDLE_VALUE, &ptr, NTAVM_ZEROBITS, size,
 		  MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   SetLastError(olderr);
   return st == 0 ? ptr : MFAIL;
 }
 
 /* For direct MMAP, use MEM_TOP_DOWN to minimize interference */
-static LJ_AINLINE void *DIRECT_MMAP(size_t size)
+static LJ_AINLINE void *DIRECT_MMAP(size_t* size)
 {
+  if (custom_mmap)
+     return custom_mmap(size);
   DWORD olderr = GetLastError();
   void *ptr = NULL;
-  long st = ntavm(INVALID_HANDLE_VALUE, &ptr, NTAVM_ZEROBITS, &size,
+  long st = ntavm(INVALID_HANDLE_VALUE, &ptr, NTAVM_ZEROBITS, size,
 		  MEM_RESERVE|MEM_COMMIT|MEM_TOP_DOWN, PAGE_READWRITE);
   SetLastError(olderr);
   return st == 0 ? ptr : MFAIL;
@@ -119,22 +128,22 @@ static LJ_AINLINE void *DIRECT_MMAP(size_t size)
 
 #else
 
-#define INIT_MMAP()		((void)0)
+#define INIT_MMAP(a,b) ((void)0)
 
 /* Win32 MMAP via VirtualAlloc */
-static LJ_AINLINE void *CALL_MMAP(size_t size)
+static LJ_AINLINE void *CALL_MMAP(size_t* size)
 {
   DWORD olderr = GetLastError();
-  void *ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+  void *ptr = VirtualAlloc(0, *size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
   SetLastError(olderr);
   return ptr ? ptr : MFAIL;
 }
 
 /* For direct MMAP, use MEM_TOP_DOWN to minimize interference */
-static LJ_AINLINE void *DIRECT_MMAP(size_t size)
+static LJ_AINLINE void *DIRECT_MMAP(size_t* size)
 {
   DWORD olderr = GetLastError();
-  void *ptr = VirtualAlloc(0, size, MEM_RESERVE|MEM_COMMIT|MEM_TOP_DOWN,
+  void *ptr = VirtualAlloc(0, *size, MEM_RESERVE|MEM_COMMIT|MEM_TOP_DOWN,
 			   PAGE_READWRITE);
   SetLastError(olderr);
   return ptr ? ptr : MFAIL;
@@ -145,6 +154,10 @@ static LJ_AINLINE void *DIRECT_MMAP(size_t size)
 /* This function supports releasing coalesed segments */
 static LJ_AINLINE int CALL_MUNMAP(void *ptr, size_t size)
 {
+#if LJ_64
+  if (custom_munmap)
+     return custom_munmap(ptr, size);
+#endif
   DWORD olderr = GetLastError();
   MEMORY_BASIC_INFORMATION minfo;
   char *cptr = (char *)ptr;
@@ -745,7 +758,7 @@ static void *direct_alloc(size_t nb)
 {
   size_t mmsize = mmap_align(nb + SIX_SIZE_T_SIZES + CHUNK_ALIGN_MASK);
   if (LJ_LIKELY(mmsize > nb)) {     /* Check for wrap around 0 */
-    char *mm = (char *)(DIRECT_MMAP(mmsize));
+    char *mm = (char *)(DIRECT_MMAP(&mmsize));
     if (mm != CMFAIL) {
       size_t offset = align_offset(chunk2mem(mm));
       size_t psize = mmsize - offset - DIRECT_FOOT_PAD;
@@ -914,7 +927,7 @@ static void *alloc_sys(mstate m, size_t nb)
     size_t req = nb + TOP_FOOT_SIZE + SIZE_T_ONE;
     size_t rsize = granularity_align(req);
     if (LJ_LIKELY(rsize > nb)) { /* Fail if wraps around zero */
-      char *mp = (char *)(CALL_MMAP(rsize));
+      char *mp = (char *)(CALL_MMAP(&rsize));
       if (mp != CMFAIL) {
 	tbase = mp;
 	tsize = rsize;
@@ -1141,12 +1154,12 @@ static void *tmalloc_small(mstate m, size_t nb)
 
 /* ----------------------------------------------------------------------- */
 
-void *lj_alloc_create(void)
+void *lj_alloc_create(PMMAP cust_mmap, PMUNMAP cust_munmap)
 {
   size_t tsize = DEFAULT_GRANULARITY;
   char *tbase;
-  INIT_MMAP();
-  tbase = (char *)(CALL_MMAP(tsize));
+  INIT_MMAP(cust_mmap, cust_munmap);
+  tbase = (char *)(CALL_MMAP(&tsize));
   if (tbase != CMFAIL) {
     size_t msize = pad_request(sizeof(struct malloc_state));
     mchunkptr mn;
