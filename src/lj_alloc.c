@@ -37,9 +37,9 @@
 #define MAX_SIZE_T		(~(size_t)0)
 #define MALLOC_ALIGNMENT	((size_t)8U)
 
-#define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
+#define DEFAULT_GRANULARITY	((size_t)512U * (size_t)1024U)
 #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
-#define DEFAULT_MMAP_THRESHOLD	((size_t)128U * (size_t)1024U)
+#define DEFAULT_MMAP_THRESHOLD	((size_t)512U * (size_t)1024U)
 #define MAX_RELEASE_CHECK_RATE	255
 
 /* ------------------- size_t and alignment properties -------------------- */
