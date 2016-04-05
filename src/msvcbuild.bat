@@ -1,5 +1,5 @@
 @rem Script to build LuaJIT with MSVC.
-@rem Copyright (C) 2005-2014 Mike Pall. See Copyright Notice in luajit.h
+@rem Copyright (C) 2005-2016 Mike Pall. See Copyright Notice in luajit.h
 @rem
 @rem Either open a "Visual Studio .NET Command Prompt"
 @rem (Note that the Express Edition does not contain an x64 compiler)
@@ -37,6 +37,7 @@ if exist minilua.exe.manifest^
 @if errorlevel 8 goto :X64
 @set DASMFLAGS=-D WIN -D JIT -D FFI
 @set LJARCH=x86
+@set LJCOMPILE=%LJCOMPILE% /arch:SSE2
 :X64
 minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h vm_x86.dasc
 @if errorlevel 1 goto :BAD
@@ -97,16 +98,7 @@ goto :STATIC
 if exist %LJDLLNAME%.manifest^
   %LJMT% -manifest %LJDLLNAME%.manifest -outputresource:%LJDLLNAME%;2
 
-:: BeamNG modification: do not build the EXE - START
-
-::%LJCOMPILE% luajit.c
-::@if errorlevel 1 goto :BAD
-::%LJLINK% /out:luajit.exe luajit.obj %LJLIBNAME%
-::@if errorlevel 1 goto :BAD
-::if exist luajit.exe.manifest^
-::  %LJMT% -manifest luajit.exe.manifest -outputresource:luajit.exe
-
-:: BeamNG modification - END
+:: BeamNG modification: do not build the EXE
 
 @del *.obj *.manifest minilua.exe buildvm.exe
 @echo.
